@@ -1,8 +1,13 @@
 # Perplexity MCP Server
 
-[![smithery badge](https://smithery.ai/badge/@daniel-lxs/mcp-server-perplexity)](https://smithery.ai/server/@daniel-lxs/mcp-server-perplexity)
+[![smithery badge](https://smithery.ai/badge/mcp-server-perplexity)](https://smithery.ai/server/mcp-server-perplexity)
 
 MCP Server for the Perplexity API.
+
+> :warning: **Limitations:**
+> - The Claude Desktop client may timeout if Perplexity processing takes too long
+> - This issue might be resolved if Claude Desktop implements support for long running operations and progress reporting in the future
+> - Implementation updates to handle these features will be made if they become available
 
 <a href="https://glama.ai/mcp/servers/hchfq9bydq"><img width="380" height="200" src="https://glama.ai/mcp/servers/hchfq9bydq/badge" alt="Perplexity Server MCP server" /></a>
 
@@ -10,65 +15,26 @@ MCP Server for the Perplexity API.
 
 ### Tools
 
-- **ask_perplexity**: Request expert programming assistance through Perplexity. Focuses on coding solutions, error debugging, and technical explanations. Returns responses with source citations and alternative suggestions.
-
-## Key Features
-
-- **Streaming Responses with Progress Reporting:**  Provides a more interactive experience by streaming responses and reporting progress during long queries.
-- **Simplified Tool Parameters:** The `ask_perplexity` tool now only requires a `query` parameter, simplifying its usage.
-- **Model Configuration via Environment Variable:**  Allows you to specify the Perplexity model using the `PERPLEXITY_MODEL` environment variable for flexible model selection.
-- **Improved Error Handling and Robustness:** Incorporates better error handling and more robust API interaction.
-
+- **ask_perplexity**: Request chat completion with citations from Perplexity  
 
 ## Quickstart
 
-### Installation
+### Install via Smithery
 
-#### Prerequisites
-
-- [Python 3.10+](https://www.python.org/downloads/)
-- [pipx](https://pipx.pypa.io/stable/)
-
-#### Install the MCP Server
-
-You have two options to install the MCP server. **For the latest version, it is recommended to install from the repository:**
-
-**1. Install locally for development (Recommended for latest version):**
-
-To ensure you have the most up-to-date version with the latest features and fixes, install from the GitHub repository.
+To install Perplexity MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/mcp-server-perplexity):
 
 ```bash
-# Clone the repository
-git clone https://github.com/daniel-lxs/mcp-server-perplexity.git
-cd mcp-server-perplexity
-
-# Build the package
-hatch build
-
-# Install using pipx from the local distribution
-pipx install dist/mcp_server_perplexity-0.2.3-py3-none-any.whl
+npx -y @smithery/cli install mcp-server-perplexity --client claude
 ```
 
-**Explanation for local development install:**
+### Install
 
-- `hatch build`: This command uses `hatch` (the build system specified in `pyproject.toml`) to build the package. It creates a distribution-ready `.whl` file in the `dist` directory.
-- `pipx install dist/mcp_server_perplexity-0.2.3-py3-none-any.whl`: This command then installs the server using `pipx` from the locally built `.whl` file. This ensures you are running the code from your local development environment.
+#### Claude Desktop
 
-**2. Install directly from PyPI (Potentially outdated):**
-
-This method installs the released version from the Python Package Index.  **Note that this version might not be the most current.**
-
-```bash
-pipx install mcp-server-perplexity
-```
-
-
-#### Configure Claude Desktop
-
-- On macOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+- On macOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`  
 - On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
-```json
+```
 "mcpServers": {
   "Perplexity": {
     "command": "uvx",
@@ -76,8 +42,7 @@ pipx install mcp-server-perplexity
       "mcp-server-perplexity"
     ],
     "env": {
-      "PERPLEXITY_API_KEY": "your-perplexity-api-key",
-      "PERPLEXITY_MODEL": "sonar-pro"
+      "PERPLEXITY_API_KEY": "your-perplexity-api-key"
     }
   }
 }
