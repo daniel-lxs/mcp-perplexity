@@ -87,37 +87,50 @@ class PerplexityClient:
                     request_body[setting] = profile[setting]
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(
+            # Use streaming request with proper headers for SSE
+            async with client.stream(
+                "POST",
                 f"{self.base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
+                    "Accept": "text/event-stream",  # Explicitly request SSE format
                 },
                 json=request_body,
                 timeout=TIMEOUT,
-            )
-            response.raise_for_status()
-
-            citations = []
-            usage = {}
-
-            async for chunk in response.aiter_text():
-                for line in chunk.split('\n'):
+            ) as response:
+                response.raise_for_status()
+                
+                citations = []
+                usage = {}
+                
+                # Process the SSE stream line by line
+                async for line in response.aiter_lines():
                     line = line.strip()
+                    if not line or line == "data: [DONE]":
+                        continue
+                        
                     if line.startswith("data: "):
                         try:
                             data = json.loads(line[6:])
+                            
+                            # Extract usage information
                             if "usage" in data:
                                 usage.update(data["usage"])
+                                
+                            # Extract citations
                             if "citations" in data:
-                                # Clear existing citations and use the complete list
                                 citations = data["citations"]
+                                
+                            # Extract content
                             if data.get("choices"):
-                                content = data["choices"][0].get(
-                                    "delta", {}).get("content", "")
-                                if content:
+                                content = data["choices"][0].get("delta", {}).get("content", "")
+                                # Even if content is empty, we should yield to maintain the stream
+                                # This ensures progress reporting works correctly
+                                if content is not None:
                                     yield content, citations.copy(), usage
                         except json.JSONDecodeError:
+                            logger.warning(f"Failed to parse JSON from line: {line}")
                             continue
 
     async def ask(
