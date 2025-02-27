@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from contextlib import contextmanager
 import logging
-from typing import Optional, List, TypeVar, Type, Callable
+from typing import Optional, List, TypeVar, Type, Callable, Dict
 from pathlib import Path
 
 from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey
@@ -10,12 +10,19 @@ from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session
 from sqlalchemy.pool import QueuePool
 
 from .utils import get_logs_dir
+from .settings import (
+    ENV_MAPPINGS, 
+    DEFAULT_SETTINGS, 
+    get_settings_with_env_defaults,
+    DEBUG_LOGS,
+    DB_PATH
+)
 
 # Setup logging
 logger = logging.getLogger(__name__)
 
 # Only enable logging if DEBUG_LOGS is set to true
-if os.getenv('DEBUG_LOGS', 'false').lower() == 'true':
+if DEBUG_LOGS:
     logger.setLevel(logging.INFO)
 
     # Ensure logs directory exists
@@ -61,6 +68,14 @@ class Message(Base):
     chat = relationship("Chat", back_populates="messages")
 
 
+class Setting(Base):
+    __tablename__ = 'settings'
+    
+    key = Column(String, primary_key=True)
+    value = Column(String)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 T = TypeVar('T')
 
 
@@ -93,7 +108,7 @@ class SessionManager:
 class DatabaseManager:
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            db_path = os.getenv('DB_PATH', 'chats.db')
+            db_path = DB_PATH
 
         self.db_url = f"sqlite:///{db_path}"
         self.engine = create_engine(
@@ -155,3 +170,46 @@ class DatabaseManager:
             if chat:
                 session.delete(chat)
                 session.commit()
+
+    def get_setting(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        with self.get_session() as session:
+            setting = session.query(Setting).filter(Setting.key == key).first()
+            return setting.value if setting else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self.get_session() as session:
+            setting = session.query(Setting).filter(Setting.key == key).first()
+            if setting:
+                setting.value = value
+            else:
+                session.add(Setting(key=key, value=value))
+            session.commit()
+
+    def get_all_settings(self) -> Dict[str, str]:
+        with self.get_session() as session:
+            settings = session.query(Setting).all()
+            return {s.key: s.value for s in settings}
+
+    def should_override_env_vars(self) -> bool:
+        """Check if environment variables should be overridden by database settings."""
+        override = self.get_setting('override_env_vars', 'false')
+        return override.lower() == 'true'
+        
+    def initialize_default_settings(self) -> None:
+        """Initialize default settings from environment variables if they don't exist."""
+        # Get settings with environment variable defaults
+        settings = get_settings_with_env_defaults()
+        
+        # First, set settings from environment variables if they exist
+        for env_var, setting_key in ENV_MAPPINGS.items():
+            env_value = os.getenv(env_var)
+            if env_value is not None:
+                self.set_setting(setting_key, env_value)
+            elif setting_key in DEFAULT_SETTINGS and self.get_setting(setting_key) is None:
+                # If no env var and no existing setting, use default
+                self.set_setting(setting_key, DEFAULT_SETTINGS[setting_key])
+        
+        # Finally, set any remaining defaults that weren't set by env vars
+        for key, value in DEFAULT_SETTINGS.items():
+            if self.get_setting(key) is None:
+                self.set_setting(key, value)

@@ -6,12 +6,13 @@ from markdown2 import markdown
 from ..database import DatabaseManager
 from .database_extension import db
 from .. import get_logs_dir
+from ..settings import DEBUG_LOGS, WEB_UI_ENABLED, WEB_UI_PORT, WEB_UI_HOST
 
 # Setup logging
 logger = logging.getLogger(__name__)
 
 # Only create logs directory and set up file handlers if DEBUG_LOGS is enabled
-if os.getenv('DEBUG_LOGS', 'false').lower() == 'true':
+if DEBUG_LOGS:
     # Ensure logs directory exists
     logs_dir = get_logs_dir()
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -43,12 +44,6 @@ else:
 
 # Disable propagation to prevent stdout logging
 logger.propagate = False
-
-# Environment variables
-WEB_UI_ENABLED = os.getenv('WEB_UI_ENABLED', 'false').lower() == 'true'
-WEB_UI_PORT = int(os.getenv('WEB_UI_PORT', '8050'))
-WEB_UI_HOST = os.getenv('WEB_UI_HOST', '127.0.0.1')
-
 
 def create_app():
     if not WEB_UI_ENABLED:

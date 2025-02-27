@@ -7,6 +7,7 @@ import uuid
 from typing import List, Dict, Optional
 import sqlite3
 from pathlib import Path
+import logging
 
 import mcp.server.stdio
 import mcp.types as types
@@ -17,16 +18,13 @@ from haikunator import Haikunator
 from .perplexity_client import PerplexityClient
 from .database import DatabaseManager, Chat, Message
 from .utils import get_logs_dir
+from .settings import DB_PATH
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 haikunator = Haikunator()
 
-# Get default DB path in user's home directory
-def get_default_db_path():
-    data_dir = Path.home() / ".mcp-perplexity" / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return str(data_dir / "chats.db")
-
-DB_PATH = os.getenv("DB_PATH", get_default_db_path())
 SYSTEM_PROMPT = """You are an expert assistant providing accurate answers to technical questions.
 Your responses must:
 1. Be based on the most relevant web sources
@@ -35,9 +33,36 @@ Your responses must:
 4. Prioritize technical accuracy, especially for programming-related questions"""
 
 server = Server("mcp-server-perplexity")
-perplexity_client = PerplexityClient()
 db_manager = DatabaseManager(DB_PATH)
 
+# Initialize default settings from environment variables
+db_manager.initialize_default_settings()
+
+# Get all settings and check if we should override env vars
+settings = db_manager.get_all_settings()
+override_env_vars = db_manager.should_override_env_vars()
+
+# Create client with settings and override flag
+perplexity_client = PerplexityClient(settings=settings, override_env_vars=override_env_vars)
+
+# Update SYSTEM_PROMPT to use settings if overriding env vars
+if override_env_vars and 'system_prompt' in settings:
+    SYSTEM_PROMPT = settings['system_prompt']
+
+# Function to reload settings and recreate client
+def reload_settings():
+    global perplexity_client, SYSTEM_PROMPT, settings, override_env_vars
+    
+    # Get updated settings
+    settings = db_manager.get_all_settings()
+    override_env_vars = db_manager.should_override_env_vars()
+    
+    # Recreate client with new settings
+    perplexity_client = PerplexityClient(settings=settings, override_env_vars=override_env_vars)
+    
+    # Update SYSTEM_PROMPT if needed
+    if override_env_vars and 'system_prompt' in settings:
+        SYSTEM_PROMPT = settings['system_prompt']
 
 def init_db():
     try:
@@ -289,11 +314,31 @@ async def handle_call_tool(
                     total=initial_estimate,
                 )
 
+            # Get profile for ask tool if available
+            profile_settings = {}
+            try:
+                from .web.database_extension import db
+                profile = db.get_profile_for_tool('ask')
+                if profile:
+                    profile_settings = {
+                        'model': profile['model'],
+                        'temperature': profile['temperature'],
+                        'top_p': profile['top_p']
+                    }
+                    if profile['system_prompt']:
+                        profile_settings['system_prompt'] = profile['system_prompt']
+                    logger.info(f"Using profile for ask: {profile['name']}")
+            except Exception as e:
+                logger.error(f"Error getting profile for ask: {e}")
+
             full_response = ""
             citations = []
             usage = {}
 
-            async for content, current_citations, current_usage in perplexity_client.ask(arguments["query"]):
+            async for content, current_citations, current_usage in perplexity_client.ask(
+                arguments["query"], 
+                profile_settings=profile_settings
+            ):
                 full_response += content
                 citations = current_citations
                 usage = current_usage
@@ -386,11 +431,31 @@ async def handle_call_tool(
                     total=initial_estimate,
                 )
 
+            # Get profile for chat tool if available
+            profile_settings = {}
+            try:
+                from .web.database_extension import db
+                profile = db.get_profile_for_tool('chat')
+                if profile:
+                    profile_settings = {
+                        'model': profile['model'],
+                        'temperature': profile['temperature'],
+                        'top_p': profile['top_p']
+                    }
+                    if profile['system_prompt']:
+                        profile_settings['system_prompt'] = profile['system_prompt']
+                    logger.info(f"Using profile for chat: {profile['name']}")
+            except Exception as e:
+                logger.error(f"Error getting profile for chat: {e}")
+
             full_response = ""
             citations = []
             usage = {}
 
-            async for content, current_citations, current_usage in perplexity_client.chat(chat_history):
+            async for content, current_citations, current_usage in perplexity_client.chat(
+                chat_history,
+                profile_settings=profile_settings
+            ):
                 full_response += content
                 citations = current_citations
                 usage = current_usage
