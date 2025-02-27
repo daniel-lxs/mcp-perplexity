@@ -1,0 +1,555 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - MCP Perplexity{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-6 dark:text-tokyo-text">Settings</h1>
+
+    <div class="bg-tokyo-bg-secondary rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold mb-4 dark:text-tokyo-accent-blue">Environment Variables Override</h2>
+        <p class="mb-4 dark:text-tokyo-text-secondary">
+            When enabled, settings from the database will override environment variables.
+            This allows you to change settings without restarting the application.
+        </p>
+        <div class="flex items-center mb-4">
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="override-toggle" class="sr-only peer" {% if override_env_vars %}checked{% endif %}>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-tokyo-accent-blue"></div>
+                <span class="ms-3 text-sm font-medium dark:text-tokyo-text">
+                    {% if override_env_vars %}Enabled{% else %}Disabled{% endif %}
+                </span>
+            </label>
+        </div>
+    </div>
+
+    <div class="bg-tokyo-bg-secondary rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold mb-4 dark:text-tokyo-accent-blue">Model Profiles</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+                <label for="ask_profile" class="block text-sm font-medium dark:text-tokyo-text mb-1">Ask Tool Profile</label>
+                <select id="ask_profile" name="ask_profile" 
+                        class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">
+                    {% for profile in profiles %}
+                    <option value="{{ profile.id }}" {% if profile.id == ask_profile_id %}selected{% endif %}>
+                        {{ profile.name }}{% if profile.is_default %} (Default){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs dark:text-tokyo-text-secondary mt-1">Profile to use for one-off questions</p>
+            </div>
+            
+            <div>
+                <label for="chat_profile" class="block text-sm font-medium dark:text-tokyo-text mb-1">Chat Tool Profile</label>
+                <select id="chat_profile" name="chat_profile" 
+                        class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">
+                    {% for profile in profiles %}
+                    <option value="{{ profile.id }}" {% if profile.id == chat_profile_id %}selected{% endif %}>
+                        {{ profile.name }}{% if profile.is_default %} (Default){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs dark:text-tokyo-text-secondary mt-1">Profile to use for chat conversations</p>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium dark:text-tokyo-text">Profiles</h3>
+                <button type="button" id="new-profile-button" 
+                        class="px-4 py-2 bg-tokyo-accent-blue text-white rounded-md hover:bg-blue-600">
+                    New Profile
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <h4 class="text-md font-medium dark:text-tokyo-text mb-2">Default Profiles</h4>
+                <div class="space-y-3">
+                    {% for profile in profiles %}
+                    {% if profile.is_default %}
+                    <div class="bg-tokyo-bg-accent p-4 rounded-md">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h5 class="text-md font-medium dark:text-tokyo-text">{{ profile.name }}</h5>
+                            </div>
+                            <span class="px-2 py-1 bg-tokyo-bg-message text-tokyo-text text-xs rounded">Default</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 text-sm dark:text-tokyo-text-secondary">
+                            <div>Model: <span class="dark:text-tokyo-text">{{ profile.model }}</span></div>
+                            <div>Temperature: <span class="dark:text-tokyo-text">{{ profile.temperature }}</span></div>
+                            <div>Top P: <span class="dark:text-tokyo-text">{{ profile.top_p }}</span></div>
+                        </div>
+                        {% if profile.system_prompt %}
+                        <div class="mt-2">
+                            <details>
+                                <summary class="cursor-pointer text-sm dark:text-tokyo-text-secondary hover:text-tokyo-accent-blue">System Prompt</summary>
+                                <p class="mt-2 text-sm dark:text-tokyo-text whitespace-pre-wrap">{{ profile.system_prompt }}</p>
+                            </details>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h4 class="text-md font-medium dark:text-tokyo-text mb-2">Custom Profiles</h4>
+                <div id="profiles-list" class="space-y-3">
+                    {% for profile in profiles %}
+                    {% if not profile.is_default %}
+                    <div id="profile-{{ profile.id }}" class="bg-tokyo-bg-accent p-4 rounded-md">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h5 class="text-md font-medium dark:text-tokyo-text">{{ profile.name }}</h5>
+                            </div>
+                            <div class="space-x-2">
+                                <button type="button" onclick="editProfile('{{ profile.id }}')"
+                                        class="px-3 py-1 bg-tokyo-bg-message text-tokyo-text rounded hover:bg-tokyo-accent-blue hover:text-white">
+                                    Edit
+                                </button>
+                                <button type="button" onclick="deleteProfile('{{ profile.id }}')"
+                                        class="px-3 py-1 bg-tokyo-bg-message text-tokyo-text rounded hover:bg-tokyo-accent-red hover:text-white">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 text-sm dark:text-tokyo-text-secondary">
+                            <div>Model: <span class="dark:text-tokyo-text">{{ profile.model }}</span></div>
+                            <div>Temperature: <span class="dark:text-tokyo-text">{{ profile.temperature }}</span></div>
+                            <div>Top P: <span class="dark:text-tokyo-text">{{ profile.top_p }}</span></div>
+                        </div>
+                        {% if profile.system_prompt %}
+                        <div class="mt-2">
+                            <details>
+                                <summary class="cursor-pointer text-sm dark:text-tokyo-text-secondary hover:text-tokyo-accent-blue">System Prompt</summary>
+                                <p class="mt-2 text-sm dark:text-tokyo-text whitespace-pre-wrap">{{ profile.system_prompt }}</p>
+                            </details>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="settings-form" class="bg-tokyo-bg-secondary rounded-lg shadow-md p-6" method="POST" onsubmit="return false;">
+        <h2 class="text-xl font-semibold mb-4 dark:text-tokyo-accent-blue">API Settings</h2>
+        
+        <div class="mb-4">
+            <label for="api_key" class="block text-sm font-medium dark:text-tokyo-text mb-1">API Key</label>
+            <input type="password" id="api_key" name="api_key" value="{{ settings.api_key|default(env_defaults.api_key) }}" 
+                   class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">
+            <p class="text-xs dark:text-tokyo-text-secondary mt-1">Your Perplexity API key</p>
+        </div>
+        
+        <div class="mb-4">
+            <label for="api_base_url" class="block text-sm font-medium dark:text-tokyo-text mb-1">API Base URL</label>
+            <input type="text" id="api_base_url" name="api_base_url" value="{{ settings.api_base_url|default(env_defaults.api_base_url) }}" 
+                   class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">
+            <p class="text-xs dark:text-tokyo-text-secondary mt-1">Base URL for Perplexity API</p>
+        </div>
+
+        <div class="mb-4">
+            <label for="timeout" class="block text-sm font-medium dark:text-tokyo-text mb-1">Timeout (seconds)</label>
+            <input type="number" id="timeout" name="timeout" min="30" max="300" value="{{ settings.timeout|default(env_defaults.timeout) }}" 
+                   class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">
+            <p class="text-xs dark:text-tokyo-text-secondary mt-1">API request timeout in seconds</p>
+        </div>
+
+        <h2 class="text-xl font-semibold mb-4 mt-8 dark:text-tokyo-accent-blue">System Prompt</h2>
+        
+        <div class="mb-4">
+            <label for="system_prompt" class="block text-sm font-medium dark:text-tokyo-text mb-1">Default System Prompt</label>
+            <textarea id="system_prompt" name="system_prompt" rows="6" 
+                      class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">{{ settings.system_prompt|default(env_defaults.system_prompt) }}</textarea>
+            <p class="text-xs dark:text-tokyo-text-secondary mt-1">Default instructions given to the model when no profile is selected</p>
+        </div>
+
+        <div class="flex justify-between mt-8">
+            <button type="button" id="reset-button" class="px-4 py-2 bg-tokyo-bg-accent text-tokyo-text rounded-md hover:bg-tokyo-bg-message">
+                Reset to Defaults
+            </button>
+            <button type="submit" class="px-4 py-2 bg-tokyo-accent-blue text-white rounded-md hover:bg-blue-600">
+                Save Settings
+            </button>
+        </div>
+    </form>
+</div>
+
+<template id="profile-modal-template">
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-tokyo-bg-secondary rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <h3 class="text-xl font-semibold mb-4 dark:text-tokyo-accent-blue">
+                <span id="profile-modal-title">New Profile</span>
+            </h3>
+            
+            <form id="profile-form" class="space-y-4">
+                <input type="hidden" id="profile-id">
+                
+                <div>
+                    <label for="profile-name" class="block text-sm font-medium dark:text-tokyo-text mb-1">Profile Name</label>
+                    <input type="text" id="profile-name" name="name" required
+                           class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">
+                </div>
+                
+                <div>
+                    <label for="profile-model" class="block text-sm font-medium dark:text-tokyo-text mb-1">Model</label>
+                    <select id="profile-model" name="model" required
+                            class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue">
+                        <option value="sonar">Sonar</option>
+                        <option value="sonar-pro">Sonar Pro</option>
+                        <option value="sonar-reasoning">Sonar Reasoning</option>
+                        <option value="sonar-reasoning-pro">Sonar Reasoning Pro</option>
+                        <option value="sonar-deep-research">Sonar Deep Research</option>
+                        <option value="r1-1776">R1 1776</option>
+                    </select>
+                    <p class="text-xs dark:text-tokyo-text-secondary mt-1">
+                        For detailed information about each model's capabilities and use cases, please consult the 
+                        <a href="https://docs.perplexity.ai/guides/model-cards" target="_blank" rel="noopener noreferrer" 
+                           class="text-tokyo-accent-blue hover:underline">Perplexity Model Documentation</a>.
+                    </p>
+                </div>
+                
+                <div>
+                    <label for="profile-temperature" class="block text-sm font-medium dark:text-tokyo-text mb-1">Temperature</label>
+                    <div class="flex items-center">
+                        <input type="range" id="profile-temperature" name="temperature" min="0" max="1" step="0.1" value="0.7"
+                               class="w-full h-2 bg-tokyo-bg-message rounded-lg appearance-none cursor-pointer">
+                        <span id="profile-temperature-value" class="ml-2 text-sm dark:text-tokyo-text">0.7</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="profile-top-p" class="block text-sm font-medium dark:text-tokyo-text mb-1">Top P</label>
+                    <div class="flex items-center">
+                        <input type="range" id="profile-top-p" name="top_p" min="0" max="1" step="0.05" value="0.9"
+                               class="w-full h-2 bg-tokyo-bg-message rounded-lg appearance-none cursor-pointer">
+                        <span id="profile-top-p-value" class="ml-2 text-sm dark:text-tokyo-text">0.9</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="profile-system-prompt" class="block text-sm font-medium dark:text-tokyo-text mb-1">System Prompt</label>
+                    <textarea id="profile-system-prompt" name="system_prompt" rows="3"
+                              class="w-full px-3 py-2 bg-tokyo-bg-accent text-tokyo-text border border-tokyo-bg-message rounded-md focus:outline-none focus:ring-2 focus:ring-tokyo-accent-blue"></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" id="profile-modal-cancel"
+                            class="px-4 py-2 bg-tokyo-bg-accent text-tokyo-text rounded-md hover:bg-tokyo-bg-message">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-tokyo-accent-blue text-white rounded-md hover:bg-blue-600">
+                        Save Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</template>
+
+<script>
+    // Model profiles from server
+    const MODEL_PROFILES = JSON.parse('{{ model_profiles|tojson|safe }}');
+    
+    // Handle override toggle
+    document.getElementById('override-toggle').addEventListener('change', function() {
+        const isEnabled = this.checked;
+        this.nextElementSibling.nextElementSibling.textContent = isEnabled ? 'Enabled' : 'Disabled';
+    });
+    
+    // Handle settings form submission
+    document.getElementById('settings-form').addEventListener('submit', function(e) {
+        e.preventDefault();  // Ensure form doesn't submit normally
+        
+        // Collect form data
+        const formData = new FormData(this);
+        const settings = Object.fromEntries(formData.entries());
+        
+        // Add override toggle state
+        settings.override_env_vars = document.getElementById('override-toggle').checked;
+        
+        // Send settings to server
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'  // Add CSRF protection header
+            },
+            body: JSON.stringify(settings)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to update settings');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                window.dialog.confirm({
+                    title: 'Settings Saved',
+                    message: 'Your settings have been saved successfully. The page will reload to apply changes.',
+                    onConfirm: () => window.location.reload()
+                });
+            }
+        })
+        .catch(error => {
+            window.dialog.error({
+                title: 'Error',
+                message: 'An error occurred while saving settings: ' + error.message
+            });
+        });
+    });
+    
+    // Handle reset button
+    document.getElementById('reset-button').addEventListener('click', function() {
+        window.dialog.confirm({
+            title: 'Reset Settings',
+            message: 'Are you sure you want to reset all settings to their default values? This cannot be undone.',
+            onConfirm: () => {
+                fetch('/api/settings/reset', {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to reset settings');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    }
+                })
+                .catch(error => {
+                    window.dialog.error({
+                        title: 'Error',
+                        message: 'An error occurred while resetting settings: ' + error.message
+                    });
+                });
+            }
+        });
+    });
+
+    // Profile Management
+    let profileModal = null;
+    const profileTemplate = document.getElementById('profile-modal-template');
+
+    function showProfileModal() {
+        if (!profileModal) {
+            profileModal = profileTemplate.content.cloneNode(true).firstElementChild;
+            document.body.appendChild(profileModal);
+            
+            // Setup event listeners
+            profileModal.querySelector('#profile-modal-cancel').addEventListener('click', hideProfileModal);
+            profileModal.querySelector('#profile-form').addEventListener('submit', handleProfileSubmit);
+            
+            // Setup range input display values
+            profileModal.querySelector('#profile-temperature').addEventListener('input', function() {
+                profileModal.querySelector('#profile-temperature-value').textContent = this.value;
+            });
+            
+            profileModal.querySelector('#profile-top-p').addEventListener('input', function() {
+                profileModal.querySelector('#profile-top-p-value').textContent = this.value;
+            });
+            
+            // Setup model selection to load default values
+            profileModal.querySelector('#profile-model').addEventListener('change', function() {
+                const model = this.value;
+                const defaults = MODEL_PROFILES[model] || { temperature: 0.7, top_p: 0.9 };
+                
+                const temperatureInput = profileModal.querySelector('#profile-temperature');
+                const topPInput = profileModal.querySelector('#profile-top-p');
+                
+                temperatureInput.value = defaults.temperature;
+                topPInput.value = defaults.top_p;
+                
+                profileModal.querySelector('#profile-temperature-value').textContent = defaults.temperature;
+                profileModal.querySelector('#profile-top-p-value').textContent = defaults.top_p;
+            });
+        }
+        profileModal.style.display = 'flex';
+        
+        // Set initial values based on selected model
+        const modelSelect = profileModal.querySelector('#profile-model');
+        const model = modelSelect.value;
+        const defaults = MODEL_PROFILES[model] || { temperature: 0.7, top_p: 0.9 };
+        
+        const temperatureInput = profileModal.querySelector('#profile-temperature');
+        const topPInput = profileModal.querySelector('#profile-top-p');
+        
+        temperatureInput.value = defaults.temperature;
+        topPInput.value = defaults.top_p;
+        
+        profileModal.querySelector('#profile-temperature-value').textContent = defaults.temperature;
+        profileModal.querySelector('#profile-top-p-value').textContent = defaults.top_p;
+    }
+
+    function hideProfileModal() {
+        if (profileModal) {
+            profileModal.style.display = 'none';
+            // Reset form
+            profileModal.querySelector('#profile-form').reset();
+            profileModal.querySelector('#profile-id').value = '';
+            profileModal.querySelector('#profile-modal-title').textContent = 'New Profile';
+            
+            // Reset to default values for selected model
+            const modelSelect = profileModal.querySelector('#profile-model');
+            const model = modelSelect.value;
+            const defaults = MODEL_PROFILES[model] || { temperature: 0.7, top_p: 0.9 };
+            
+            const temperatureInput = profileModal.querySelector('#profile-temperature');
+            const topPInput = profileModal.querySelector('#profile-top-p');
+            
+            temperatureInput.value = defaults.temperature;
+            topPInput.value = defaults.top_p;
+            
+            profileModal.querySelector('#profile-temperature-value').textContent = defaults.temperature;
+            profileModal.querySelector('#profile-top-p-value').textContent = defaults.top_p;
+        }
+    }
+
+    async function handleProfileSubmit(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        const profileId = profileModal.querySelector('#profile-id').value;
+        
+        try {
+            const response = await fetch(profileId ? `/api/profiles/${profileId}` : '/api/profiles', {
+                method: profileId ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to save profile');
+            }
+            
+            window.dialog.confirm({
+                title: 'Success',
+                message: `Profile ${profileId ? 'updated' : 'created'} successfully.`,
+                onConfirm: () => window.location.reload()
+            });
+            
+            hideProfileModal();
+        } catch (error) {
+            window.dialog.error({
+                title: 'Error',
+                message: 'An error occurred while saving the profile: ' + error.message
+            });
+        }
+    }
+
+    async function editProfile(profileId) {
+        try {
+            const response = await fetch(`/api/profiles/${profileId}`);
+            if (!response.ok) {
+                throw new Error('Failed to load profile');
+            }
+            
+            const profile = await response.json();
+            showProfileModal();
+            
+            // Fill form with profile data
+            const form = profileModal.querySelector('#profile-form');
+            form.querySelector('#profile-id').value = profile.id;
+            form.querySelector('#profile-name').value = profile.name;
+            form.querySelector('#profile-model').value = profile.model;
+            form.querySelector('#profile-temperature').value = profile.temperature;
+            form.querySelector('#profile-top-p').value = profile.top_p;
+            form.querySelector('#profile-system-prompt').value = profile.system_prompt || '';
+            
+            // Update range input displays
+            form.querySelector('#profile-temperature-value').textContent = profile.temperature;
+            form.querySelector('#profile-top-p-value').textContent = profile.top_p;
+            
+            // Update modal title
+            profileModal.querySelector('#profile-modal-title').textContent = 'Edit Profile';
+        } catch (error) {
+            window.dialog.error({
+                title: 'Error',
+                message: 'An error occurred while loading the profile: ' + error.message
+            });
+        }
+    }
+
+    function deleteProfile(profileId) {
+        window.dialog.confirm({
+            title: 'Delete Profile',
+            message: 'Are you sure you want to delete this profile? This cannot be undone.',
+            onConfirm: async () => {
+                try {
+                    const response = await fetch(`/api/profiles/${profileId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to delete profile');
+                    }
+                    
+                    // Remove profile from DOM
+                    document.getElementById(`profile-${profileId}`).remove();
+                } catch (error) {
+                    window.dialog.error({
+                        title: 'Error',
+                        message: 'An error occurred while deleting the profile: ' + error.message
+                    });
+                }
+            }
+        });
+    }
+
+    // Tool Profile Selection
+    document.getElementById('ask_profile').addEventListener('change', function() {
+        updateToolProfile('ask', this.value);
+    });
+
+    document.getElementById('chat_profile').addEventListener('change', function() {
+        updateToolProfile('chat', this.value);
+    });
+
+    async function updateToolProfile(toolName, profileId) {
+        try {
+            const response = await fetch('/api/tool-profiles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    tool_name: toolName,
+                    profile_id: profileId || null
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to update tool profile');
+            }
+            
+            window.dialog.confirm({
+                title: 'Success',
+                message: 'Tool profile updated successfully.',
+                onConfirm: () => {}
+            });
+        } catch (error) {
+            window.dialog.error({
+                title: 'Error',
+                message: 'An error occurred while updating tool profile: ' + error.message
+            });
+        }
+    }
+
+    // Initialize new profile button
+    document.getElementById('new-profile-button').addEventListener('click', () => {
+        showProfileModal();
+    });
+</script>
+{% endblock %} 
